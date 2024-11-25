@@ -1,0 +1,21 @@
+[package]
+name = "subqueue"
+version = "0.1.0"
+edition = "2021"
+authors = ["Idan Arye <IdanArye@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Binge-reading helper for Substack"
+repository = "https://github.com/idanarye/subqueue"
+readme = "README.md"
+
+[dependencies]
+actix = "0.13.5"
+actix-web = "4.9.0"
+anyhow = "1.0.93"
+chrono = { version = "0.4.38", features = ["serde"] }
+clap = { version = "4.5.21", features = ["derive"] }
+reqwest = "0.12.9"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
