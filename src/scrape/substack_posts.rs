@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use chrono::{DateTime, Utc};
-use reqwest::Url;
-use serde::Deserialize;
+use reqwest::{StatusCode, Url};
+use serde::{Deserialize, Serialize};
 
 use super::PagedFetcher;
 
@@ -28,17 +30,39 @@ impl PagedFetcher for BlogPostFetcher {
         item.id
     }
 
+    fn are_same(item1: &Self::Item, item2: &Self::Item) -> bool {
+        item1.id == item2.id
+    }
+
     async fn fetch(&self, offset: usize, limit: usize) -> anyhow::Result<Vec<BlogPost>> {
         let mut url = self.api_url.clone();
         url.query_pairs_mut()
             .append_pair("offset", &format!("{offset}"))
             .append_pair("limit", &format!("{limit}"));
-        let result = reqwest::get(url).await?;
-        Ok(serde_json::from_slice(&result.bytes().await?)?)
+        let mut result = reqwest::get(url.clone()).await?;
+        for backoff in [
+            Duration::from_secs(1),
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+            Duration::from_secs(120),
+        ] {
+            if result.status() == StatusCode::TOO_MANY_REQUESTS {
+                tracing::info!("Got {} - Backing off for {:?}", result.status(), backoff);
+                tokio::time::sleep(backoff).await;
+                result = reqwest::get(url.clone()).await?;
+            } else {
+                break;
+            }
+        }
+        if result.status().is_success() {
+            Ok(serde_json::from_slice(&result.bytes().await?)?)
+        } else {
+            anyhow::bail!("Failed with error {}.\n{}", result.status(), result.text().await?);
+        }
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BlogPost {
     pub id: usize,
     pub title: String,
