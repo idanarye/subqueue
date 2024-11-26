@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use reqwest::Url;
 use serde::Deserialize;
 
+use super::PagedFetcher;
+
 pub struct BlogPostFetcher {
     api_url: Url,
 }
@@ -12,8 +14,21 @@ impl BlogPostFetcher {
         api_url.query_pairs_mut().append_pair("sort", "new");
         Ok(Self { api_url })
     }
+}
 
-    pub async fn fetch(&self, offset: usize, limit: usize) -> anyhow::Result<Vec<BlogPost>> {
+impl PagedFetcher for BlogPostFetcher {
+    type Item = BlogPost;
+    type Key = usize;
+
+    fn page_size(&self) -> usize {
+        12
+    }
+
+    fn extract_key(item: &Self::Item) -> Self::Key {
+        item.id
+    }
+
+    async fn fetch(&self, offset: usize, limit: usize) -> anyhow::Result<Vec<BlogPost>> {
         let mut url = self.api_url.clone();
         url.query_pairs_mut()
             .append_pair("offset", &format!("{offset}"))

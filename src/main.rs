@@ -1,4 +1,5 @@
 use clap::Parser;
+use subqueue::scrape::PagedFetcher;
 use tracing_subscriber::layer::SubscriberExt as _;
 use tracing_subscriber::util::SubscriberInitExt as _;
 
@@ -23,7 +24,8 @@ async fn main() -> anyhow::Result<()> {
         Cli::Dump { blog_url } => {
             tracing::info!("Dumping {blog_url}");
             let fetcher = subqueue::scrape::substack_posts::BlogPostFetcher::new(&blog_url)?;
-            println!("{:#?}", fetcher.fetch(10, 0).await?);
+            //println!("{:#?}", fetcher.fetch(10, 4).await?);
+            println!("{:#?}", fetcher.find_num_items().await?);
         }
     }
     Ok(())
