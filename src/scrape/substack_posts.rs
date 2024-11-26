@@ -57,7 +57,11 @@ impl PagedFetcher for BlogPostFetcher {
         if result.status().is_success() {
             Ok(serde_json::from_slice(&result.bytes().await?)?)
         } else {
-            anyhow::bail!("Failed with error {}.\n{}", result.status(), result.text().await?);
+            anyhow::bail!(
+                "Failed with error {}.\n{}",
+                result.status(),
+                result.text().await?
+            );
         }
     }
 }

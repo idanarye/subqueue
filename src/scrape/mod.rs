@@ -1,15 +1,16 @@
 use std::future::Future;
 
-use futures::future::join_all;
-use itertools::Itertools;
-
 pub mod substack_posts;
 
 pub trait PagedFetcher {
     type Item;
     type Key: core::fmt::Debug + PartialEq;
 
-    fn fetch(&self, offset: usize, limit: usize) -> impl Future<Output = anyhow::Result<Vec<Self::Item>>>;
+    fn fetch(
+        &self,
+        offset: usize,
+        limit: usize,
+    ) -> impl Future<Output = anyhow::Result<Vec<Self::Item>>>;
 
     fn extract_key(item: &Self::Item) -> Self::Key;
 
@@ -46,33 +47,30 @@ pub trait PagedFetcher {
 
     fn fetch_all(&self) -> impl Future<Output = anyhow::Result<Vec<Self::Item>>> {
         async {
-            let page_size = self.page_size();
-            let num_items = self.find_num_items().await?;
-
-
             let mut collected_items = Vec::new();
-            collected_items.reserve_exact(num_items);
 
-            let starting_points_iteartor = (0..num_items).step_by(page_size - 1);
-            for starting_points_batch in starting_points_iteartor.chunks(1).into_iter() {
-                // let starting_points_batch = starting_points_batch.collect_vec();
-                for batch in join_all(starting_points_batch.map(|i| self.fetch(i, page_size))).await {
-                    if let Some(prev_last) = collected_items.last() {
-                        let mut it = batch?.into_iter();
-                        let Some(first) = it.next() else {
-                            anyhow::bail!("empty result");
-                        };
-                        if !Self::are_same(prev_last, &first) {
-                            // TODO: make it a sepcial, actionable error
-                            anyhow::bail!("Different items");
-                        }
-                        collected_items.extend(it);
-                    } else {
-                        // First time - just add them all
-                        collected_items.extend(batch?);
+            loop {
+                let batch = self.fetch(collected_items.len().max(1) - 1, 0).await?;
+                let mut batch_it = batch.into_iter();
+                let Some(first) = batch_it.next() else {
+                    break;
+                };
+                if let Some(prev_last) = collected_items.last() {
+                    if !Self::are_same(prev_last, &first) {
+                        // TODO: make it a sepcial, actionable error
+                        anyhow::bail!("Different items");
                     }
-                    tracing::debug!("Got {} items so far", collected_items.len());
+                } else {
+                    // First time - just add them all
+                    collected_items.push(first);
                 }
+                if let Some(second) = batch_it.next() {
+                    collected_items.push(second);
+                } else {
+                    break;
+                }
+                collected_items.extend(batch_it);
+                tracing::debug!("Got {} items so far", collected_items.len());
             }
 
             collected_items.reverse();
